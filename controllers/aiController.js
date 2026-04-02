@@ -1,19 +1,26 @@
-const { GoogleGenAI } = require("@google/genai");
+const Groq = require("groq-sdk");
 const {
   conceptExplainPrompt,
   questionAnswerPrompt,
 } = require("../utils/prompts");
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+});
 
-// @desc    Generate interview questions and answers using Gemini
-// @route   POST /api/ai/generate-questions
-// @access  Private
+// ================================
+// Generate interview questions
+// ================================
 const generateInterviewQuestions = async (req, res) => {
   try {
-    const { role, experience, topicsToFocus, numberOfQuestions } = req.body;
+    const {
+      role,
+      experience,
+      topicsToFocus,
+      numberOfQuestions = 10,
+    } = req.body;
 
-    if (!role || !experience || !topicsToFocus || !numberOfQuestions) {
+    if (!role || !experience || !topicsToFocus) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
@@ -21,37 +28,47 @@ const generateInterviewQuestions = async (req, res) => {
       role,
       experience,
       topicsToFocus,
-      numberOfQuestions
+      numberOfQuestions,
     );
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-lite",
-      contents: prompt,
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an API. Return ONLY valid JSON. Do not add any extra text.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      temperature: 0.3,
     });
 
-    let rawText = response.text;
+    const rawText = completion.choices[0].message.content;
 
-    // Clean it: Remove ```json and ``` from beginning and end
-    const cleanedText = rawText
-      .replace(/^```json\s*/, "") // remove starting ```json
-      .replace(/```$/, "") // remove ending ```
-      .trim(); // remove extra spaces
-
-    // Now safe to parse
-    const data = JSON.parse(cleanedText);
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch (parseError) {
+      return res.status(500).json({
+        message: "Invalid AI response format",
+      });
+    }
 
     res.status(200).json(data);
   } catch (error) {
     res.status(500).json({
       message: "Failed to generate questions",
-      error: error.message,
     });
   }
 };
 
-// @desc    Generate explains a interview question
-// @route   POST /api/ai/generate-explanation
-// @access  Private
+// ================================
+// Generate concept explanation
+// ================================
 const generateConceptExplanation = async (req, res) => {
   try {
     const { question } = req.body;
@@ -62,29 +79,42 @@ const generateConceptExplanation = async (req, res) => {
 
     const prompt = conceptExplainPrompt(question);
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-lite",
-      contents: prompt,
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an API. Return ONLY valid JSON. Do not add any extra text.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      temperature: 0.3,
     });
 
-    let rawText = response.text;
+    const rawText = completion.choices[0].message.content;
 
-    // Clean it: Remove ```json and ``` from beginning and end
-    const cleanedText = rawText
-      .replace(/^```json\s*/, "") // remove starting ```json
-      .replace(/```$/, "") // remove ending ```
-      .trim(); // remove extra spaces
-
-    // Now safe to parse
-    const data = JSON.parse(cleanedText);
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch (parseError) {
+      return res.status(500).json({
+        message: "Invalid AI response format",
+      });
+    }
 
     res.status(200).json(data);
   } catch (error) {
     res.status(500).json({
-      message: "Failed to generate questions",
-      error: error.message,
+      message: "Failed to generate explanation",
     });
   }
 };
 
-module.exports = { generateInterviewQuestions, generateConceptExplanation };
+module.exports = {
+  generateInterviewQuestions,
+  generateConceptExplanation,
+};
