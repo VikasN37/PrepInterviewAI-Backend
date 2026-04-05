@@ -4,9 +4,17 @@ const {
   questionAnswerPrompt,
 } = require("../utils/prompts");
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+// Helper to safely parse AI response (handles markdown fences)
+const parseAIResponse = (rawText) => {
+  const cleaned = rawText
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+  return JSON.parse(cleaned);
+};
 
 // ================================
 // Generate interview questions
@@ -39,10 +47,7 @@ const generateInterviewQuestions = async (req, res) => {
           content:
             "You are an API. Return ONLY valid JSON. Do not add any extra text.",
         },
-        {
-          role: "user",
-          content: prompt,
-        },
+        { role: "user", content: prompt },
       ],
       temperature: 0.3,
     });
@@ -51,18 +56,14 @@ const generateInterviewQuestions = async (req, res) => {
 
     let data;
     try {
-      data = JSON.parse(rawText);
+      data = parseAIResponse(rawText);
     } catch (parseError) {
-      return res.status(500).json({
-        message: "Invalid AI response format",
-      });
+      return res.status(500).json({ message: "Invalid AI response format" });
     }
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({
-      message: "Failed to generate questions",
-    });
+    res.status(500).json({ message: "Failed to generate questions" });
   }
 };
 
@@ -87,10 +88,7 @@ const generateConceptExplanation = async (req, res) => {
           content:
             "You are an API. Return ONLY valid JSON. Do not add any extra text.",
         },
-        {
-          role: "user",
-          content: prompt,
-        },
+        { role: "user", content: prompt },
       ],
       temperature: 0.3,
     });
@@ -99,22 +97,15 @@ const generateConceptExplanation = async (req, res) => {
 
     let data;
     try {
-      data = JSON.parse(rawText);
+      data = parseAIResponse(rawText);
     } catch (parseError) {
-      return res.status(500).json({
-        message: "Invalid AI response format",
-      });
+      return res.status(500).json({ message: "Invalid AI response format" });
     }
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({
-      message: "Failed to generate explanation",
-    });
+    res.status(500).json({ message: "Failed to generate explanation" });
   }
 };
 
-module.exports = {
-  generateInterviewQuestions,
-  generateConceptExplanation,
-};
+module.exports = { generateInterviewQuestions, generateConceptExplanation };
